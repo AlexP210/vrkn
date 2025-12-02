@@ -8,11 +8,13 @@ nn = torch.nn
 
 class RSSM(AbstractSSM):
 
-    def __init__(self,
-                 encoders: nn.ModuleList,
-                 transition_model: AbstractRSSMTM,
-                 decoders: nn.ModuleList,
-                 smoothing_preprocessors: Optional[nn.ModuleList] = None):
+    def __init__(
+        self,
+        encoders: nn.ModuleList,
+        transition_model: AbstractRSSMTM,
+        decoders: nn.ModuleList,
+        smoothing_preprocessors: Optional[nn.ModuleList] = None,
+    ):
 
         super(RSSM, self).__init__()
 
@@ -21,14 +23,23 @@ class RSSM(AbstractSSM):
         self.decoders = decoders
         self.smoothing_preprocessors = smoothing_preprocessors
 
-    def encode(self,
-               observations: list[torch.Tensor],
-               obs_valid: Optional[list[torch.Tensor]] = None) -> list[torch.Tensor]:
-        embedded_obs = [enc(observations[i], mask=None if obs_valid is None else obs_valid[i])
-                        for i, enc in enumerate(self.encoders)]
+    def encode(
+        self,
+        observations: list[torch.Tensor],
+        obs_valid: Optional[list[torch.Tensor]] = None,
+    ) -> list[torch.Tensor]:
+        embedded_obs = [
+            enc(observations[i], mask=None if obs_valid is None else obs_valid[i])
+            for i, enc in enumerate(self.encoders)
+        ]
         if self.smoothing_preprocessors is not None:
-            embedded_obs = [sp(embedded_obs[i], obs_valid=None if obs_valid is None else obs_valid[i])
-                            for i, sp in enumerate(self.smoothing_preprocessors)]
+            embedded_obs = [
+                sp(
+                    embedded_obs[i],
+                    obs_valid=None if obs_valid is None else obs_valid[i],
+                )
+                for i, sp in enumerate(self.smoothing_preprocessors)
+            ]
         return embedded_obs
 
     @property
@@ -49,29 +60,36 @@ class RSSM(AbstractSSM):
     def latent_distribution(self):
         return self.transition_model.latent_distribution
 
-    def get_next_posterior(self,
-                           observation: list[torch.Tensor],
-                           action: torch.Tensor,
-                           post_state: dict,
-                           obs_valid: Optional[list[torch.Tensor]] = None) -> dict:
+    def get_next_posterior(
+        self,
+        observation: list[torch.Tensor],
+        action: torch.Tensor,
+        post_state: dict,
+        obs_valid: Optional[list[torch.Tensor]] = None,
+    ) -> dict:
         observation = [torch.unsqueeze(obs, dim=1) for obs in observation]
-        latent_obs = [lo.squeeze(dim=1) for lo in self.encode(observation, obs_valid=obs_valid)]
-        return self.transition_model.get_next_posterior(latent_obs=latent_obs,
-                                                        action=action,
-                                                        post_state=post_state,
-                                                        obs_valid=obs_valid)
+        latent_obs = [
+            lo.squeeze(dim=1) for lo in self.encode(observation, obs_valid=obs_valid)
+        ]
+        return self.transition_model.get_next_posterior(
+            latent_obs=latent_obs,
+            action=action,
+            post_state=post_state,
+            obs_valid=obs_valid,
+        )
 
-    def predict_rewards_open_loop(self,
-                                  initial_state: dict,
-                                  actions: torch.Tensor):
-        states = self.transition_model.open_loop_prediction(initial_state=initial_state,
-                                                            actions=actions)
+    def predict_rewards_open_loop(self, initial_state: dict, actions: torch.Tensor):
+        states = self.transition_model.open_loop_prediction(
+            initial_state=initial_state, actions=actions
+        )
         return self.decoders[-1](self.transition_model.get_features(state=states))[0]
 
-    def rollout_policy(self,
-                       state: dict,
-                       policy_fn: Callable[[torch.Tensor], tuple[torch.Tensor, torch.Tensor]],
-                       num_steps: int) -> tuple[dict, torch.Tensor]:
-        return self.transition_model.rollout_policy(state=state,
-                                                    policy_fn=policy_fn,
-                                                    num_steps=num_steps)
+    def rollout_policy(
+        self,
+        state: dict,
+        policy_fn: Callable[[torch.Tensor], tuple[torch.Tensor, torch.Tensor]],
+        num_steps: int,
+    ) -> tuple[dict, torch.Tensor]:
+        return self.transition_model.rollout_policy(
+            state=state, policy_fn=policy_fn, num_steps=num_steps
+        )
